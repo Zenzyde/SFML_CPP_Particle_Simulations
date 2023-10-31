@@ -1,15 +1,15 @@
 # SFML_CPP_Particle_Simulations
-This is a project made in pure C++ to refresh &amp; deepen my C++ knowledge outside Unreal Engine.
+This is a project made in pure C++ using the SFML graphics library to refresh &amp; deepen my C++ knowledge outside Unreal Engine.
 
 It features 3 "particle simulation" modes of incremental implementation difficulty.
 
 The Quicksort algorithm.
 ![Quicksort visual](/images/Particles_Sorting.gif)
-This mode also features (a deliberately thread-locking) timelapse sequence as the sorting happens! :D
+This is basically your usual Quicksort implementation, with some added remapping of values during the creation of sorting elements to make sure that all elements, regardless of the amount of them and their ranges in values, should fit within the screen.
 
-A mesh simulation.
-![Mesh](/images/Particles_Mesh.gif)
-This is a fun little experimental implementation of an interactable mesh. You can interact with the mesh by dragging individual vertices around​, or by clicking two different vertices that are connected with a rope, which will cause the rope to be cut and the vertices to be separated. The mesh is also reactive in the sense that vertices will try to keep from overlapping with other vertices, and try to keep a certain distance to a neighboring vertex connected with a rope.
+An A* Pathfinding grid.
+![Mesh](/images/Particles_Pathfinding.gif)
+This is pretty much your usual A* pathfinding implementation, with a priority queue. I've added my own touch by introducing some different path types with different weights which can be placed manually in order to manipulate the potential path the algorithm could potentially take.
 
 A particle sandbox.
 ![Sandbox](/images/Particles_Sandbox.gif)
