@@ -6,9 +6,9 @@
 #ifndef SANDBOXGRID
 #define SANDBOXGRID
 
-enum class ParticleType
+enum class EParticleType
 {
-	sand, wood, stone, water, acid, air
+	sand, wood, stone, water, acid, air, LAST_ENUM_VALUE
 };
 
 class SandboxGrid
@@ -17,10 +17,10 @@ public:
 	SandboxGrid(int NodeSize, int Width, int Height, int StartX, int StartY);
 	~SandboxGrid();
 
-	void AddParticleToGrid(sf::Vector2f pos, ParticleType type, bool movedFromEarlierNode = false);
+	void AddParticleToGrid(sf::Vector2f pos, EParticleType type, bool movedFromEarlierNode = false);
 	void RemoveParticleFromGrid(sf::Vector2f pos);
 	void SimulateSandbox(float deltaSeconds);
-	void MoveParticleToGridNode(ParticleType type, int originalIndex, int newIndex, bool movedFromEarlierNode = false, bool switchNodes = false);
+	void MoveParticleToGridNode(EParticleType type, int originalIndex, int newIndex, bool movedFromEarlierNode = false, bool switchNodes = false);
 
 	std::shared_ptr<class SandboxGridNode> GetNode(int index);
 

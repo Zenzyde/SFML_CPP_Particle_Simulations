@@ -7,28 +7,28 @@ SandboxParticle::SandboxParticle()
 {
 }
 
-SandboxParticle::SandboxParticle(ParticleType _type, sf::Vector2f pos, sf::Vector2f size, SandboxGridNode& _nodeParent) :
+SandboxParticle::SandboxParticle(EParticleType _type, sf::Vector2f pos, sf::Vector2f size, SandboxGridNode& _nodeParent) :
 	particle(std::make_unique<sf::RectangleShape>(sf::RectangleShape(sf::Vector2f(size)))), nodeParent(std::make_unique<SandboxGridNode>(_nodeParent)), gravityDirection(0), bUseGravity(false)
 {
 	type = _type;
 	switch (_type)
 	{
-	case ParticleType::sand:
+	case EParticleType::sand:
 		particle->setFillColor(sf::Color::Yellow);
 		break;
-	case ParticleType::wood:
+	case EParticleType::wood:
 		particle->setFillColor(sf::Color::Color(139, 69, 19));
 		break;
-	case ParticleType::stone:
+	case EParticleType::stone:
 		particle->setFillColor(sf::Color::Color(158, 159, 153));
 		break;
-	case ParticleType::water:
+	case EParticleType::water:
 		particle->setFillColor(sf::Color::Cyan);
 		break;
-	case ParticleType::acid:
+	case EParticleType::acid:
 		particle->setFillColor(sf::Color::Green);
 		break;
-	case ParticleType::air:
+	case EParticleType::air:
 		particle->setFillColor(sf::Color::Color(181, 219, 239));
 		break;
 	}
@@ -75,7 +75,7 @@ void SandboxParticle::DrawLowerParticle(sf::RenderWindow& window)
 		node->DrawFilledBox(window);
 }
 
-ParticleType SandboxParticle::GetParticleType()
+EParticleType SandboxParticle::GetParticleType()
 {
 	return type;
 }

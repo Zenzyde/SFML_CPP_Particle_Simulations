@@ -1,6 +1,6 @@
 #include "SandboxSandParticle.h"
 
-SandboxSandParticle::SandboxSandParticle(ParticleType type, sf::Vector2f pos, sf::Vector2f size, SandboxGridNode& _nodeParent) :
+SandboxSandParticle::SandboxSandParticle(EParticleType type, sf::Vector2f pos, sf::Vector2f size, SandboxGridNode& _nodeParent) :
 	SandboxParticle(type, pos, size, _nodeParent)
 {
 	bUseGravity = true;

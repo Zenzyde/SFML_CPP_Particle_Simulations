@@ -32,7 +32,7 @@ SandboxGrid::~SandboxGrid()
 {
 }
 
-void SandboxGrid::AddParticleToGrid(sf::Vector2f pos, ParticleType type, bool movedFromEarlierNode)
+void SandboxGrid::AddParticleToGrid(sf::Vector2f pos, EParticleType type, bool movedFromEarlierNode)
 {
     for (size_t i = 0; i < nodeGrid.size(); i++)
     {
@@ -70,10 +70,10 @@ void SandboxGrid::SimulateSandbox(float deltaSeconds)
     }
 }
 
-void SandboxGrid::MoveParticleToGridNode(ParticleType type, int originalIndex, int newIndex, bool movedFromEarlierNode, bool switchNodes)
+void SandboxGrid::MoveParticleToGridNode(EParticleType type, int originalIndex, int newIndex, bool movedFromEarlierNode, bool switchNodes)
 {
-    ParticleType originalType = nodeGrid[originalIndex]->GetParticleType();
-    ParticleType newType = nodeGrid[newIndex]->GetParticleType();
+    EParticleType originalType = nodeGrid[originalIndex]->GetParticleType();
+    EParticleType newType = nodeGrid[newIndex]->GetParticleType();
 
     if (!switchNodes)
     {

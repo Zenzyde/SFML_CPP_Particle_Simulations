@@ -105,7 +105,7 @@ void SandboxGridNode::DrawParticle(sf::RenderWindow& window)
 	particle->DrawParticle(window);
 }
 
-void SandboxGridNode::AddParticle(ParticleType type, bool wasMovedFromEarlierNode)
+void SandboxGridNode::AddParticle(EParticleType type, bool wasMovedFromEarlierNode)
 {
 	spawnedParticle = true;
 
@@ -114,22 +114,22 @@ void SandboxGridNode::AddParticle(ParticleType type, bool wasMovedFromEarlierNod
 
 	switch (type)
 	{
-	case ParticleType::sand:
+	case EParticleType::sand:
 		particle = std::make_unique<SandboxSandParticle>(type, pos, extents, *this);
 		break;
-	case ParticleType::wood:
+	case EParticleType::wood:
 		particle = std::make_unique<SandboxParticle>(type, pos, extents, *this);
 		break;
-	case ParticleType::stone:
+	case EParticleType::stone:
 		particle = std::make_unique<SandboxParticle>(type, pos, extents, *this);
 		break;
-	case ParticleType::water:
+	case EParticleType::water:
 		particle = std::make_unique<SandboxWaterParticle>(type, pos, extents, *this);
 		break;
-	case ParticleType::acid:
+	case EParticleType::acid:
 		particle = std::make_unique<SandboxAcidParticle>(type, pos, extents, *this);
 		break;
-	case ParticleType::air:
+	case EParticleType::air:
 		particle = std::make_unique<SandboxAirParticle>(type, pos, extents, *this);
 		break;
 	}
@@ -232,9 +232,9 @@ void SandboxGridNode::UpdateNode()
 	}
 }
 
-ParticleType SandboxGridNode::GetParticleType()
+EParticleType SandboxGridNode::GetParticleType()
 {
 	if (particle == NULL)
-		return ParticleType::stone;
+		return EParticleType::stone;
 	return particle->GetParticleType();
 }

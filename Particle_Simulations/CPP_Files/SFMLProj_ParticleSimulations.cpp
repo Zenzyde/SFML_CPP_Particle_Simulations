@@ -4,141 +4,32 @@
 #include <vector>
 #include <random>
 #include <iostream>
-#include "Particle.h"
-#include "MeshRopeParticle.h"
 #include "Button.h"
 #include "SandboxGrid.h"
 #include <SFML/System/Clock.hpp>
 #include "SortingNode.h"
-#include <chrono>
-#include <thread>
+#include "PathfindGrid.h"
+#include "PathGridNode.h"
 
 using namespace std;
 
-vector<Particle> particles;
+enum class EProgramMode
+{
+    QuickSort,
+    Sandbox,
+    Pathfinding
+};
 
-vector<MeshRopeParticle> meshParticles;
+EProgramMode activeEProgramMode;
 
-int playMode = 1;
-
-ParticleType particleType = ParticleType::stone;
-
-MeshRopeParticle* particleA;
-MeshRopeParticle* particleB;
-MeshRopeParticle* attachedMeshParticle;
+EParticleType selectedParticleType = EParticleType::stone;
 
 vector<SortingNode> SortingArray;
+int numSortingElements = 2500;
+int minElementValue = 70;
+int maxElementValue = 7000;
 
-void SetupParticleRain(sf::RenderWindow& window)
-{
-    // Initialize and distribute particles
-    for (size_t i = 0; i < 10; i++)
-    {
-        sf::Color randColor(rand() % 255, rand() % 255, rand() % 255);
-
-        float radius(rand() % 15);
-
-        float X(rand() % (int)(1280 - radius));
-
-        float fallSpeed(((rand() % 5) + 1) / 10.f);
-
-        Particle particle(radius, randColor, X, fallSpeed, 720, &window);
-
-        particles.push_back(particle);
-    }
-}
-
-void SetupParticleMesh(sf::RenderWindow& window)
-{
-    int Columns = 25;
-    int Rows = 5;
-    int XOffset = 50;
-
-    // Initialize and distribute mesh
-    for (size_t i = 0; i < Rows; i++)
-    {
-        for (size_t j = 0; j < Columns; j++)
-        {
-            sf::Color randColor(rand() % 255, rand() % 255, rand() % 255);
-
-            float radius(10);
-
-            float startRopeLength(40);
-
-            float X((j + 1) * XOffset);
-
-            float Y((i + 1) * startRopeLength + 100);
-
-            float fallSpeed(0.25f);
-
-            float ropeLength(50);
-
-            if (i == 0 && j == 0 || i == 0 && j == Columns - 1)
-            {
-                MeshRopeParticle particle(false, fallSpeed, ropeLength, radius, randColor, sf::Vector2f(X, Y), j, i, &window);
-
-                meshParticles.push_back(particle);
-            }
-            else
-            {
-                if (i == 0)
-                {
-                    MeshRopeParticle particle(true, fallSpeed, ropeLength, radius, randColor, sf::Vector2f(X, Y), j, i, &window);
-
-                    meshParticles.push_back(particle);
-                }
-                else
-                {
-                    MeshRopeParticle particle(true, fallSpeed, ropeLength, radius, randColor, sf::Vector2f(X, Y), j, i, &window);
-
-                    MeshRopeParticle* upNeighbour = &meshParticles[((i * Columns) + j) - Columns]; // (row * columns) + column - columns
-
-                    particle.AssignUpNeighbour(upNeighbour);
-
-                    meshParticles.push_back(particle);
-                }
-            }
-        }
-    }
-
-    for (size_t i = 0; i < Rows; i++)
-    {
-        for (size_t j = 0; j < Columns; j++)
-        {
-            MeshRopeParticle* current = &meshParticles[(i * Columns) + j];
-
-            if (current->IsGravityApplied() && ((i * Columns) + j) + Columns < meshParticles.size()) // Only add down neighbours
-            {
-                MeshRopeParticle* downNeighbour = &meshParticles[((i * Columns) + j) + Columns];
-
-                current->AssignDownNeighbour(downNeighbour);
-            }
-
-            if (j == 0) // Only add right neighbours
-            {
-                MeshRopeParticle* rightNeighbour = &meshParticles[((i * Columns) + j) + 1];
-
-                current->AssignRightNeighbour(rightNeighbour);
-            }
-            else if (j > 0 && j < Columns - 1)// Add both left and right neighbours
-            {
-                MeshRopeParticle* leftNeighbour = &meshParticles[((i * Columns) + j) - 1];
-
-                current->AssignLeftNeighbour(leftNeighbour);
-
-                MeshRopeParticle* rightNeighbour = &meshParticles[((i * Columns) + j) + 1];
-
-                current->AssignRightNeighbour(rightNeighbour);
-            }
-            else if (j == Columns - 1) // Only add left neighbours
-            {
-                MeshRopeParticle* leftNeighbour = &meshParticles[((i * Columns) + j) - 1];
-
-                current->AssignLeftNeighbour(leftNeighbour);
-            }
-        }
-    }
-}
+ENodeType selectedNodeType = ENodeType::Blocked;
 
 SandboxGrid SetupSandboxGrid(sf::RenderWindow& window)
 {
@@ -157,142 +48,49 @@ float lerp(float v0, float v1, float t) {
     return (1 - t) * v0 + t * v1;
 }
 
-void SetupSortingArray(int NumElements, float elementOffset, float elementWidth, int Min, int Max, sf::RenderWindow* renderWindow)
+// Reference: https://stackoverflow.com/questions/3451553/value-remapping
+float Remap(float value, float low1, float high1, float low2, float high2)
+{
+    return low2 + (value - low1) * (high2 - low2) / (high1 - low1);
+}
+
+void SetupSortingArray(int NumElements, float Min, float Max, sf::RenderWindow* renderWindow)
 {
     if (NumElements <= 1) return;
-
     SortingArray.clear();
+
+    float elementWidth = ((renderWindow->getSize().x * 1.0f) / (NumElements * 1.0f));
+
+    float MaxHeight = Max;
+    float MinHeight = Min;
+
+    if (Max > renderWindow->getSize().y)
+    {
+        // Max is greater than window size, rescale max and min to fit within window
+        MaxHeight = Remap(Max, Min, Max, 0, renderWindow->getSize().y);
+        MinHeight = Remap(Min, Min, Max, 0, renderWindow->getSize().y);
+    }
+
     for (size_t i = 1; i < NumElements + 1; i++)
     {
-        double nextElement = static_cast<double>(rand() % (Max - Min)) + Min;
-        float X = i * elementOffset;
+        float r = static_cast<float>(rand());
+        double nextElement = static_cast<double>(fmod(r, (MaxHeight - MinHeight))) + MinHeight;
+        float X = i * elementWidth;
         SortingNode Node(nextElement, X, renderWindow->getSize().y, elementWidth, *renderWindow);
 
         SortingArray.push_back(Node);
     }
 }
 
-void SimulateParticleRain()
-{
-    if (!particles.empty())
-    {
-        vector<int> ToDelete;
-
-        for (vector<Particle>::size_type i = particles.size() - 1; i != (vector<Particle>::size_type) - 1; i--)
-        {
-            Particle* particle = &particles[i];
-
-            particle->Fall();
-
-            if (particle->ParticlePassedBottom())
-            {
-                particle->RandomizeParticle();
-            }
-
-            particle->DrawParticle();
-        }
-    }
-}
-
-void SimulateParticleMesh(sf::RenderWindow& window, int particleEffectMode)
-{
-    sf::Vector2i mousePos(sf::Mouse::getPosition(window));
-
-    bool skipOtherParticles = false;
-    bool mouseOverlappingOneParticle = false;
-
-    if (!meshParticles.empty())
-    {
-        for (vector<MeshRopeParticle>::size_type i = meshParticles.size() - 1; i != (vector<MeshRopeParticle>::size_type) - 1; i--)
-        {
-            MeshRopeParticle* particle = &meshParticles[i];
-
-            sf::Vector2f actualMouse(mousePos.x, mousePos.y);
-
-            particle->Fall();
-
-            for (vector<MeshRopeParticle>::size_type j = meshParticles.size() - 1; j != (vector<MeshRopeParticle>::size_type) - 1; j--)
-            {
-                if (i == j) continue;
-
-                MeshRopeParticle* neighbour = &meshParticles[j];
-                particle->AvoidParticle(neighbour->GetParticle().getPosition());
-            }
-
-            particle->DrawRopes(window);
-
-            if (particleEffectMode == 1)
-            {
-                if (!skipOtherParticles && particleA == nullptr && particle->IsMouseOverlappingParticle(actualMouse))
-                {
-                    particleA = particle;
-                    skipOtherParticles = true;
-                }
-                else if (!skipOtherParticles && particleA != nullptr && particleB == nullptr && particle->IsMouseOverlappingParticle(actualMouse))
-                {
-                    particleB = particle;
-                    skipOtherParticles = true;
-                    mouseOverlappingOneParticle = true;
-                }
-                else if (!skipOtherParticles && particleA != nullptr && particleB == nullptr && !particle->IsMouseOverlappingParticle(actualMouse) && !mouseOverlappingOneParticle && i == (vector<MeshRopeParticle>::size_type) - 1)
-                {
-                    particleA = nullptr;
-                    skipOtherParticles = true;
-                }
-
-                if (particleA != nullptr && particleB != nullptr)
-                {
-                    particleA->RemoveRope(particleB);
-                    particleB->RemoveRope(particleA);
-
-                    particleA = nullptr;
-                    particleB = nullptr;
-
-                    skipOtherParticles = true;
-                }
-            }
-            else if (particleEffectMode == -1)
-            {
-                if (skipOtherParticles)
-                    continue;
-                if (!particle->IsMouseAttached() && particle->IsMouseOverlappingParticle(actualMouse))
-                {
-                    particle->SetMouseAttachedState(true);
-                    attachedMeshParticle = particle;
-                    skipOtherParticles = true;
-                }
-                else if (particle->IsMouseAttached() && particle->IsMouseOverlappingParticle(actualMouse))
-                {
-                    particle->SetMouseAttachedState(false);
-                    attachedMeshParticle = NULL;
-                    skipOtherParticles = true;
-                }
-                else if (particle->IsMouseAttached() && !particle->IsMouseOverlappingParticle(actualMouse))
-                {
-                    particle->SetMouseAttachedState(false);
-                    attachedMeshParticle = NULL;
-                    skipOtherParticles = true;
-                }
-            }
-
-            particle->MoveToMouse(actualMouse);
-
-            particle->Constrict();
-
-            window.draw(particle->GetParticle());
-        }
-    }
-}
-
-void SimulateSandboxGrid(SandboxGrid& sandboxGrid, sf::RenderWindow& window, float MouseRadius, int existanceplayMode, float deltaSeconds)
+void SimulateSandboxGrid(SandboxGrid& sandboxGrid, sf::RenderWindow& window, float MouseRadius, bool bAddParticle, bool bRemoveParticle, float deltaSeconds)
 {
     sf::Vector2i mousePos(sf::Mouse::getPosition(window));
 
     sf::Vector2f actualMouse(mousePos.x, mousePos.y);
 
-    if (existanceplayMode == 1)
-        sandboxGrid.AddParticleToGrid(actualMouse, particleType);
-    else if (existanceplayMode == -1)
+    if (bAddParticle)
+        sandboxGrid.AddParticleToGrid(actualMouse, selectedParticleType);
+    else if (bRemoveParticle)
         sandboxGrid.RemoveParticleFromGrid(actualMouse);
 
     sandboxGrid.SimulateSandbox(deltaSeconds);
@@ -330,14 +128,11 @@ int QuicksortPartition(int low, int high, sf::RenderWindow& window)
         SortingArray[rightIndex].SetPosition(Temp.x, Temp.y);
 
         window.clear();
-        SimulateParticleRain();
         for (size_t i = 0; i < SortingArray.size(); i++)
         {
             SortingArray[i].DrawNode();
         }
         window.display();
-
-        std::this_thread::sleep_for(std::chrono::microseconds(3)); // Intentionally slowing down for timelapse-effect
         
         // Index swap
         SortingNode TempNode = SortingArray[leftIndex];
@@ -364,43 +159,44 @@ void SimulateSorting()
     }
 }
 
+PathfindGrid InitializePathGrid(sf::Vector2f gridSize, sf::Vector2f nodeSize, sf::Vector2f gridOffset)
+{
+    PathfindGrid grid(gridSize, nodeSize, gridOffset);
+    return grid;
+}
+
 int main()
 {
     sf::Clock clock;
 
-    float lastElapsedTime = 0.f;
-
-    sf::RenderWindow window(sf::VideoMode(1280, 720), "Particle Simulation");
+    sf::RenderWindow window(sf::VideoMode(1280, 720), "Particle Simulations");
 
     // Initialize random
     srand((unsigned)time(0));
 
-    SetupParticleRain(window);
-
-    SetupParticleMesh(window);
-
     SandboxGrid sandboxGrid(SetupSandboxGrid(window));
 
-    SetupSortingArray(255, 5, 2.f, 50, 700, &window);
+    PathfindGrid pathGrid(InitializePathGrid(sf::Vector2f(1010, 690), sf::Vector2f(15, 15), sf::Vector2f(250, 10)));
 
-    Button fallingParticlesButton(sf::Vector2f(10, 10), sf::Vector2f(200, 35), sf::Color::Blue, sf::Vector2f(15, 10), sf::Vector2f(1, 1), 24, sf::Color::White, "Quick Sorting", window);
-
-    Button particleMeshButton(sf::Vector2f(10, 50), sf::Vector2f(170, 35), sf::Color::Blue, sf::Vector2f(15, 50), sf::Vector2f(1, 1), 24, sf::Color::White, "Particle Mesh", window);
-
-    Button sandboxButton(sf::Vector2f(10, 90), sf::Vector2f(220, 35), sf::Color::Blue, sf::Vector2f(15, 90), sf::Vector2f(1, 1), 24, sf::Color::White, "Particle Sandbox", window);
-
-    Button switchBackParticleButton(sf::Vector2f(10, window.getSize().y - 45), sf::Vector2f(20, 30), sf::Color::Blue, sf::Vector2f(15, window.getSize().y - 45), sf::Vector2f(1, 1), 24, sf::Color::White, "-", window);
-    Button particleTypeTextButton(sf::Vector2f(40, window.getSize().y - 45), sf::Vector2f(80, 30), sf::Color::Blue, sf::Vector2f(45, window.getSize().y - 45), sf::Vector2f(1, 1), 24, sf::Color::White, "Stone", window);
-    Button switchForthParticleButton(sf::Vector2f(130, window.getSize().y - 45), sf::Vector2f(23, 30), sf::Color::Blue, sf::Vector2f(135, window.getSize().y - 45), sf::Vector2f(1, 1), 24, sf::Color::White, "+", window);
-
+    Button quicksortButton(sf::Vector2f(10, 10), sf::Vector2f(200, 35), sf::Color::Blue, sf::Vector2f(15, 10), sf::Vector2f(1, 1), 24, sf::Color::White, "Quick Sorting", window);
     Button SortingTextButton(sf::Vector2f(40, window.getSize().y - 45), sf::Vector2f(80, 30), sf::Color::Blue, sf::Vector2f(45, window.getSize().y - 45), sf::Vector2f(1, 1), 24, sf::Color::White, "Sort", window);
     Button RandomizeTextButton(sf::Vector2f(200, window.getSize().y - 45), sf::Vector2f(150, 30), sf::Color::Blue, sf::Vector2f(205, window.getSize().y - 45), sf::Vector2f(1, 1), 24, sf::Color::White, "Randomize", window);
 
+    Button pathfindingButton(sf::Vector2f(10, 50), sf::Vector2f(170, 35), sf::Color::Blue, sf::Vector2f(15, 50), sf::Vector2f(1, 1), 24, sf::Color::White, "Pathfinding", window);
+    Button pathTypeTextButton(sf::Vector2f(10, window.getSize().y - 45), sf::Vector2f(120, 30), sf::Color::Blue, sf::Vector2f(15, window.getSize().y - 45), sf::Vector2f(1, 1), 24, sf::Color::White, "Blocked", window);
+    Button startPathfindButton(sf::Vector2f(10, window.getSize().y - 85), sf::Vector2f(220, 30), sf::Color::Blue, sf::Vector2f(15, window.getSize().y - 85), sf::Vector2f(1, 1), 24, sf::Color::White, "Start Pathfinding", window);
+    Button clearPathButton(sf::Vector2f(10, window.getSize().y - 125), sf::Vector2f(160, 30), sf::Color::Blue, sf::Vector2f(15, window.getSize().y - 125), sf::Vector2f(1, 1), 24, sf::Color::White, "Clear Path", window);
+
+    Button sandboxButton(sf::Vector2f(10, 90), sf::Vector2f(220, 35), sf::Color::Blue, sf::Vector2f(15, 90), sf::Vector2f(1, 1), 24, sf::Color::White, "Particle Sandbox", window);
+    Button particleTypeTextButton(sf::Vector2f(40, window.getSize().y - 45), sf::Vector2f(80, 30), sf::Color::Blue, sf::Vector2f(45, window.getSize().y - 45), sf::Vector2f(1, 1), 24, sf::Color::White, "Stone", window);
+
     while (window.isOpen())
     {
-        int particleExistanceplayMode = 0;
-        int meshParticleEffect = 0;
-
+        bool bAddParticle = false;
+        bool bRemoveParticle = false;
+        bool bAddNodeType = false;
+        bool bSetNodeEmpty = false;
+ 
         sf::Event event;
         while (window.pollEvent(event))
         {
@@ -411,126 +207,168 @@ int main()
                 if (event.key.code == sf::Keyboard::Escape)
                     window.close();
             }
+            if (event.type == sf::Event::MouseWheelScrolled)
+            {
+                float delta = event.mouseWheelScroll.delta;
+                int nextNodeType = (int)selectedNodeType + delta;
+                int nextParticleType = (int)selectedParticleType + delta;
+                switch (activeEProgramMode)
+                {
+                case EProgramMode::QuickSort:
+                    break;
+                case EProgramMode::Pathfinding:
+                    if (delta > 0)
+                    {
+                        nextNodeType %= (int)ENodeType::LAST_ENUM_VALUE;
+                        if ((ENodeType)nextNodeType == ENodeType::Empty)
+                            nextNodeType++;
+                        if ((ENodeType)nextNodeType == ENodeType::Occupied)
+                            nextNodeType++;
+                    }
+                    else if (delta < 0)
+                    {
+                        if ((ENodeType)nextNodeType == ENodeType::Empty || (ENodeType)nextNodeType == ENodeType::Occupied)
+                        {
+                            nextNodeType = (int)ENodeType::LAST_ENUM_VALUE;
+                            nextNodeType--;
+                        }
+                    }
+                    selectedNodeType = (ENodeType)nextNodeType;
+                    switch (selectedNodeType)
+                    {
+                    case ENodeType::Empty:
+                        pathTypeTextButton.SetText("Empty");
+                        break;
+                    case ENodeType::Blocked:
+                        pathTypeTextButton.SetText("Blocked");
+                        break;
+                    case ENodeType::Start:
+                        pathTypeTextButton.SetText("Start");
+                        break;
+                    case ENodeType::Goal:
+                        pathTypeTextButton.SetText("Goal");
+                        break;
+                    case ENodeType::Hazard:
+                        pathTypeTextButton.SetText("Hazard");
+                        break;
+                    case ENodeType::Safe:
+                        pathTypeTextButton.SetText("Safe");
+                        break;
+                    default:
+                        break;
+                    }
+                    break;
+                case EProgramMode::Sandbox:
+                    if (delta > 0)
+                    {
+                        nextParticleType %= (int)EParticleType::LAST_ENUM_VALUE;
+                    }
+                    else if (delta < 0 && nextParticleType < 0)
+                    {
+                        nextParticleType = (int)EParticleType::LAST_ENUM_VALUE;
+                        nextParticleType--;
+                    }
+                    selectedParticleType = (EParticleType)nextParticleType;
+                    switch (selectedParticleType)
+                    {
+                    case EParticleType::wood:
+                        particleTypeTextButton.SetText("Sand");
+                        break;
+                    case EParticleType::stone:
+                        particleTypeTextButton.SetText("Wood");
+                        break;
+                    case EParticleType::water:
+                        particleTypeTextButton.SetText("Stone");
+                        break;
+                    case EParticleType::acid:
+                        particleTypeTextButton.SetText("Water");
+                        break;
+                    case EParticleType::air:
+                        particleTypeTextButton.SetText("Acid");
+                        break;
+                    case EParticleType::sand:
+                        particleTypeTextButton.SetText("Air");
+                        break;
+                    default:
+                        break;
+                    }
+                    break;
+                default:
+                    break;
+                }
+            }
             if (sf::Mouse::isButtonPressed(sf::Mouse::Left))
             {
-                if (fallingParticlesButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
-                {
-                    playMode = 0;
-                }
+                if (quicksortButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
+                    activeEProgramMode = EProgramMode::QuickSort;
                 
-                if (particleMeshButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
-                {
-                    playMode = 1;
-                }
+                if (pathfindingButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
+                    activeEProgramMode = EProgramMode::Pathfinding;
                 
                 if (sandboxButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
-                {
-                    playMode = 2;
-                }
+                    activeEProgramMode = EProgramMode::Sandbox;
                 
-                if (switchBackParticleButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
+                switch (activeEProgramMode)
                 {
-                    switch (particleType)
+                case EProgramMode::QuickSort:
+                    if (SortingTextButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
                     {
-                    case ParticleType::wood:
-                        particleType = ParticleType::sand;
-                        particleTypeTextButton.SetText("Sand");
-                        break;
-                    case ParticleType::stone:
-                        particleType = ParticleType::wood;
-                        particleTypeTextButton.SetText("Wood");
-                        break;
-                    case ParticleType::water:
-                        particleType = ParticleType::stone;
-                        particleTypeTextButton.SetText("Stone");
-                        break;
-                    case ParticleType::acid:
-                        particleType = ParticleType::water;
-                        particleTypeTextButton.SetText("Water");
-                        break;
-                    case ParticleType::air:
-                        particleType = ParticleType::acid;
-                        particleTypeTextButton.SetText("Acid");
-                        break;
-                    case ParticleType::sand:
-                        particleType = ParticleType::air;
-                        particleTypeTextButton.SetText("Air");
-                        break;
+                        Quicksort(0, SortingArray.size() - 1, window);
                     }
-                }
-                
-                if (switchForthParticleButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
-                {
-                    switch (particleType)
+
+                    if (RandomizeTextButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
                     {
-                    case ParticleType::sand:
-                        particleType = ParticleType::wood;
-                        particleTypeTextButton.SetText("Wood");
-                        break;
-                    case ParticleType::wood:
-                        particleType = ParticleType::stone;
-                        particleTypeTextButton.SetText("Stone");
-                        break;
-                    case ParticleType::stone:
-                        particleType = ParticleType::water;
-                        particleTypeTextButton.SetText("Water");
-                        break;
-                    case ParticleType::water:
-                        particleType = ParticleType::acid;
-                        particleTypeTextButton.SetText("Acid");
-                        break;
-                    case ParticleType::acid:
-                        particleType = ParticleType::air;
-                        particleTypeTextButton.SetText("Air");
-                        break;
-                    case ParticleType::air:
-                        particleType = ParticleType::sand;
-                        particleTypeTextButton.SetText("Sand");
-                        break;
+                        SetupSortingArray(numSortingElements, minElementValue, maxElementValue, &window);
                     }
-                }
-
-                if (SortingTextButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
-                {
-                    Quicksort(0, SortingArray.size() - 1, window);
-                }
-
-
-                if (RandomizeTextButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
-                {
-                    SetupSortingArray(255, 5, 2.f, 50, 700, &window);
-                }
-                
-                if (playMode == 1)
-                {
-                    meshParticleEffect = 1;
-                }
-                
-                if (playMode == 2)
-                {
-                    particleExistanceplayMode = 1;
+                    break;
+                case EProgramMode::Pathfinding:
+                    if (startPathfindButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
+                    {
+                        pathGrid.FindPath();
+                    }
+                    else if (clearPathButton.WasClicked(sf::Vector2f(sf::Mouse::getPosition(window))))
+                    {
+                        pathGrid.ResetPath();
+                    }
+                    else
+                    {
+                        bAddNodeType = true;
+                    }
+                    break;
+                case EProgramMode::Sandbox:
+                    bAddParticle = true;
+                    break;
+                default:
+                    break;
                 }
             }
             if (sf::Mouse::isButtonPressed(sf::Mouse::Right))
             {
-                if (playMode == 1)
+                switch (activeEProgramMode)
                 {
-                    meshParticleEffect = -1;
-                }
-
-                if (playMode == 2)
-                {
-                    particleExistanceplayMode = -1;
+                case EProgramMode::QuickSort:
+                    break;
+                case EProgramMode::Pathfinding:
+                    bSetNodeEmpty = true;
+                    break;
+                case EProgramMode::Sandbox:
+                    break;
+                default:
+                    break;
                 }
             }
         }
 
         window.clear();
 
-        switch (playMode)
+        sf::Time elapsedTime = clock.restart();
+        float deltaTime = elapsedTime.asMilliseconds();
+
+        switch (activeEProgramMode)
         {
-        case 0:
-            SimulateParticleRain();
+        case EProgramMode::QuickSort:
+            if (SortingArray.size() == 0)
+                SetupSortingArray(numSortingElements, minElementValue, maxElementValue, &window);
             
             SimulateSorting();
 
@@ -538,29 +376,45 @@ int main()
 
             RandomizeTextButton.DrawButton();
             break;
-        case 1:
-            SimulateParticleMesh(window, meshParticleEffect);
-            break;
-        case 2:
-            SimulateSandboxGrid(sandboxGrid, window, 5, particleExistanceplayMode, clock.getElapsedTime().asSeconds() - lastElapsedTime);
+        case EProgramMode::Pathfinding:
+            if (SortingArray.size() > 0)
+                SortingArray.clear();
             
-            switchBackParticleButton.DrawButton();
+            if (bAddNodeType)
+            {
+                sf::Vector2i mousePos(sf::Mouse::getPosition(window));
+                sf::Vector2f actualMouse(mousePos.x, mousePos.y);
+                pathGrid.SetNodeType(actualMouse, selectedNodeType);
+            }
+            if (bSetNodeEmpty)
+            {
+                sf::Vector2i mousePos(sf::Mouse::getPosition(window));
+                sf::Vector2f actualMouse(mousePos.x, mousePos.y);
+                pathGrid.SetNodeType(actualMouse, ENodeType::Empty);
+            }
+            pathGrid.Draw(window);
 
-            switchForthParticleButton.DrawButton();
+            pathTypeTextButton.DrawButton();
+            startPathfindButton.DrawButton();
+            clearPathButton.DrawButton();
+            break;
+        case EProgramMode::Sandbox:
+            if (SortingArray.size() > 0)
+                SortingArray.clear();
+            
+            SimulateSandboxGrid(sandboxGrid, window, 5, bAddParticle, bRemoveParticle, deltaTime);
 
             particleTypeTextButton.DrawButton();
             break;
         }
 
-        fallingParticlesButton.DrawButton();
+        quicksortButton.DrawButton();
 
-        particleMeshButton.DrawButton();
+        pathfindingButton.DrawButton();
 
         sandboxButton.DrawButton();
 
         window.display();
-
-        lastElapsedTime = clock.getElapsedTime().asSeconds();
     }
 
     return 0;

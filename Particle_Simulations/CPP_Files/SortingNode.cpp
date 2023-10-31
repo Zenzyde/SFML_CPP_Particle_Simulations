@@ -9,11 +9,16 @@ SortingNode::SortingNode(const SortingNode& node) : Value(node.Value), X(node.X)
 	VisualBar.setPosition(X, Y);
 
 	// Lerp colors
-	int R = (X / RenderWindow->getSize().x) * 255;
-	int G = rand() % 255;
-	int B = (Y / RenderWindow->getSize().y) * 255;
+	sf::Color leftColor(sf::Color::Magenta);
+	sf::Color rightColor(sf::Color::Cyan);
+	
+	sf::Color finalColor(
+		(1 - (Value / RenderWindow->getSize().y)) * leftColor.r + (Value / RenderWindow->getSize().y) * rightColor.r,
+		(1 - (Value / RenderWindow->getSize().y)) * leftColor.g + (Value / RenderWindow->getSize().y) * rightColor.g,
+		(1 - (Value / RenderWindow->getSize().y)) * leftColor.b + (Value / RenderWindow->getSize().y) * rightColor.b
+	);
 
-	VisualBar.setFillColor(sf::Color(R, G, B));
+	VisualBar.setFillColor(finalColor);
 }
 
 SortingNode::SortingNode(double value, float x, float y, float width, sf::RenderWindow& renderWindow) : Value(value), X(x), Y(y), Width(width), RenderWindow(&renderWindow)
@@ -56,19 +61,4 @@ double SortingNode::GetValue()
 void SortingNode::DrawNode()
 {
 	RenderWindow->draw(VisualBar);
-	
-	/*sf::Vertex lines[4];
-	lines[0].position = VisualBar.getPosition();
-	lines[0].color = sf::Color::Red;
-
-	lines[1].position = VisualBar.getOrigin();
-	lines[1].color = sf::Color::Green;
-
-	lines[2].position = VisualBar.getPosition();
-	lines[2].color = sf::Color::Blue;
-
-	lines[3].position = sf::Vector2f(RenderWindow.getSize().x / 2.f, RenderWindow.getSize().y / 2.0f);
-	lines[3].color = sf::Color::Yellow;
-	
-	RenderWindow.draw(lines, 4, sf::Lines);*/
 }

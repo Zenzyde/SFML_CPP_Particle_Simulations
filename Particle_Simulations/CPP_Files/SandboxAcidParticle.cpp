@@ -1,6 +1,6 @@
 #include "SandboxAcidParticle.h"
 
-SandboxAcidParticle::SandboxAcidParticle(ParticleType _type, sf::Vector2f pos, sf::Vector2f size, SandboxGridNode& _nodeParent) :
+SandboxAcidParticle::SandboxAcidParticle(EParticleType _type, sf::Vector2f pos, sf::Vector2f size, SandboxGridNode& _nodeParent) :
 	SandboxWaterParticle(_type, pos, size, _nodeParent)
 {
 	bUseGravity = true;
@@ -22,7 +22,7 @@ void SandboxAcidParticle::Update()
 		nextNode = nodeParent->GetUpperNode();
 		node = nodeParent->GetGrid().GetNode(nextNode);
 
-		if (node != NULL && node->IsOccupied() && node->GetParticleType() != ParticleType::acid)
+		if (node != NULL && node->IsOccupied() && node->GetParticleType() != EParticleType::acid)
 		{
 			grid.RemoveParticleFromGrid(node->GetCenter());
 		}
@@ -30,7 +30,7 @@ void SandboxAcidParticle::Update()
 		nextNode = nodeParent->GetLeftNode();
 		node = nodeParent->GetGrid().GetNode(nextNode);
 
-		if (node != NULL && node->IsOccupied() && node->GetParticleType() != ParticleType::acid)
+		if (node != NULL && node->IsOccupied() && node->GetParticleType() != EParticleType::acid)
 		{
 			grid.RemoveParticleFromGrid(node->GetCenter());
 		}
@@ -38,7 +38,7 @@ void SandboxAcidParticle::Update()
 		nextNode = nodeParent->GetRightNode();
 		node = nodeParent->GetGrid().GetNode(nextNode);
 
-		if (node != NULL && node->IsOccupied() && node->GetParticleType() != ParticleType::acid)
+		if (node != NULL && node->IsOccupied() && node->GetParticleType() != EParticleType::acid)
 		{
 			grid.RemoveParticleFromGrid(node->GetCenter());
 		}

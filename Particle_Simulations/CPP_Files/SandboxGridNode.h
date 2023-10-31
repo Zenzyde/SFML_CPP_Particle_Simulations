@@ -21,7 +21,7 @@ public:
 	void DrawBox(sf::RenderWindow& window);
 	void DrawFilledBox(sf::RenderWindow& window);
 	void DrawParticle(sf::RenderWindow& window);
-	void AddParticle(ParticleType type, bool wasMovedFromEarlierNode = false);
+	void AddParticle(EParticleType type, bool wasMovedFromEarlierNode = false);
 	void RemoveParticle();
 	bool IsInsideNode(sf::Vector2f pos);
 	int GetIndex();
@@ -39,7 +39,7 @@ public:
 	int GetRightNode();
 	SandboxGrid& GetGrid();
 	void UpdateNode();
-	ParticleType GetParticleType();
+	EParticleType GetParticleType();
 
 private:
 	sf::Vector2f pos;
